@@ -4,7 +4,8 @@ A browser-based survival game inspired by Vampire Survivors, built with vanilla 
 
 ## Play Now
 
-**[Play Drill Survivor](https://kr1s-z.github.io/game/)**
+**[Play Drill Survivor](https://kr1s-z.github.io/drill-survivor/)**
+
 
 ## About
 
