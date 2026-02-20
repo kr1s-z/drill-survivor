@@ -2,13 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Drill Survivor</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Courier New',monospace;overflow:hidden}
-#game-container{position:relative;width:800px;height:600px;border:3px solid #e94560;border-radius:4px;box-shadow:0 0 30px rgba(233,69,96,.4),0 0 60px rgba(233,69,96,.15)}
-svg{display:block;background:#0f0f23}
+#game-container{position:relative;width:800px;height:600px;max-width:100vw;max-height:100vh;border:3px solid #e94560;border-radius:4px;box-shadow:0 0 30px rgba(233,69,96,.4),0 0 60px rgba(233,69,96,.15)}
+@media(max-width:820px){#game-container{width:100vw;height:75vw;border:none;border-radius:0}}
+@media(max-height:620px) and (max-width:820px){#game-container{width:133.33vh;height:100vh}}
+#touch-zone{display:none;position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;touch-action:none}
+.joystick-base{position:absolute;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.2);transform:translate(-50%,-50%);pointer-events:none;display:none}
+.joystick-knob{position:absolute;width:50px;height:50px;border-radius:50%;background:rgba(233,69,96,.5);border:2px solid rgba(233,69,96,.7);transform:translate(-50%,-50%);pointer-events:none;display:none}
+@media(pointer:coarse){#touch-zone{display:block}.controls-hint-touch{display:inline}.controls-hint-keys{display:none}}
+@media(pointer:fine){.controls-hint-touch{display:none}.controls-hint-keys{display:inline}}
+svg{display:block;background:#0f0f23;width:100%;height:100%}
 .screen-overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(15,15,35,.92);z-index:10;transition:opacity .4s}
 .screen-overlay.hidden{opacity:0;pointer-events:none}
 .title{font-size:48px;color:#e94560;text-shadow:0 0 20px rgba(233,69,96,.6);margin-bottom:10px;letter-spacing:4px}
@@ -205,13 +212,19 @@ svg{display:block;background:#0f0f23}
 </g>
 </svg>
 
+<!-- Touch Controls -->
+<div id="touch-zone">
+  <div class="joystick-base" id="joystick-base"></div>
+  <div class="joystick-knob" id="joystick-knob"></div>
+</div>
+
 <!-- Menu Screen -->
 <div id="menu-screen" class="screen-overlay">
   <div class="title">DRILL SURVIVOR</div>
   <div class="subtitle">You are an oil rig fighting through eco activists, bureaucrats, and politicians.<br>Move to survive. Drill enemies on contact. Collect certificates for power.</div>
   <button class="btn" id="btn-start">START DRILLING</button>
   <div class="high-score-display" id="menu-hi">HIGH SCORE: 0</div>
-  <div class="controls-hint">WASD or Arrow Keys to move</div>
+  <div class="controls-hint"><span class="controls-hint-keys">WASD or Arrow Keys to move</span><span class="controls-hint-touch">Touch and drag to move</span></div>
 </div>
 
 <!-- Game Over Screen -->
@@ -355,6 +368,71 @@ document.addEventListener("keydown", e => {
   if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
 });
 document.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+// ─── TOUCH INPUT ────────────────────────────────────────────
+let touchDx = 0, touchDy = 0;
+let touchId = null;
+let touchOriginX = 0, touchOriginY = 0;
+const JOYSTICK_MAX = 50;
+
+const touchZone = document.getElementById("touch-zone");
+const jBase = document.getElementById("joystick-base");
+const jKnob = document.getElementById("joystick-knob");
+
+function handleTouchStart(e) {
+  if (touchId !== null) return;
+  const t = e.changedTouches[0];
+  touchId = t.identifier;
+  const rect = touchZone.getBoundingClientRect();
+  touchOriginX = t.clientX - rect.left;
+  touchOriginY = t.clientY - rect.top;
+  jBase.style.left = touchOriginX + "px";
+  jBase.style.top = touchOriginY + "px";
+  jBase.style.display = "block";
+  jKnob.style.left = touchOriginX + "px";
+  jKnob.style.top = touchOriginY + "px";
+  jKnob.style.display = "block";
+  touchDx = 0;
+  touchDy = 0;
+  e.preventDefault();
+}
+
+function handleTouchMove(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== touchId) continue;
+    const rect = touchZone.getBoundingClientRect();
+    const cx = t.clientX - rect.left;
+    const cy = t.clientY - rect.top;
+    let rawDx = cx - touchOriginX;
+    let rawDy = cy - touchOriginY;
+    const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy) || 1;
+    const clamped = Math.min(dist, JOYSTICK_MAX);
+    const nx = (rawDx / dist) * clamped;
+    const ny = (rawDy / dist) * clamped;
+    jKnob.style.left = (touchOriginX + nx) + "px";
+    jKnob.style.top = (touchOriginY + ny) + "px";
+    touchDx = nx / JOYSTICK_MAX;
+    touchDy = ny / JOYSTICK_MAX;
+  }
+  e.preventDefault();
+}
+
+function handleTouchEnd(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== touchId) continue;
+    touchId = null;
+    touchDx = 0;
+    touchDy = 0;
+    jBase.style.display = "none";
+    jKnob.style.display = "none";
+  }
+  e.preventDefault();
+}
+
+touchZone.addEventListener("touchstart", handleTouchStart, { passive: false });
+touchZone.addEventListener("touchmove", handleTouchMove, { passive: false });
+touchZone.addEventListener("touchend", handleTouchEnd, { passive: false });
+touchZone.addEventListener("touchcancel", handleTouchEnd, { passive: false });
 
 // ─── ENTITY ARRAYS ──────────────────────────────────────────
 let player = null;
@@ -548,7 +626,12 @@ function updatePlayer(dt, now) {
   if (keys["a"] || keys["arrowleft"]) dx = -1;
   if (keys["d"] || keys["arrowright"]) dx = 1;
 
-  if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+  if (dx === 0 && dy === 0 && (touchDx !== 0 || touchDy !== 0)) {
+    dx = touchDx;
+    dy = touchDy;
+  }
+
+  if (dx !== 0 && dy !== 0) { const m = Math.sqrt(dx*dx+dy*dy) || 1; dx /= m; dy /= m; }
   const sp = (PLAYER_SPEED + speedBonus) * (dt / 16);
   player.x = clamp(player.x + dx * sp, 16, W - 16);
   player.y = clamp(player.y + dy * sp, 40, H - 16);
