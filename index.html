@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drill Survivor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Courier New',monospace;overflow:hidden}
+#game-container{position:relative;width:800px;height:600px;border:3px solid #e94560;border-radius:4px;box-shadow:0 0 30px rgba(233,69,96,.4),0 0 60px rgba(233,69,96,.15)}
+svg{display:block;background:#0f0f23}
+.screen-overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(15,15,35,.92);z-index:10;transition:opacity .4s}
+.screen-overlay.hidden{opacity:0;pointer-events:none}
+.title{font-size:48px;color:#e94560;text-shadow:0 0 20px rgba(233,69,96,.6);margin-bottom:10px;letter-spacing:4px}
+.subtitle{font-size:16px;color:#eee;margin-bottom:30px;text-align:center;max-width:500px;line-height:1.6;opacity:.8}
+.btn{background:none;border:2px solid #e94560;color:#e94560;padding:14px 40px;font-size:20px;font-family:'Courier New',monospace;cursor:pointer;letter-spacing:2px;transition:all .2s;margin:6px}
+.btn:hover{background:#e94560;color:#0f0f23;box-shadow:0 0 20px rgba(233,69,96,.5)}
+.high-score-display{color:#f5a623;font-size:14px;margin-top:18px;letter-spacing:1px}
+.controls-hint{color:#888;font-size:12px;margin-top:12px}
+.game-over-score{font-size:28px;color:#f5a623;margin:15px 0}
+</style>
+</head>
+<body>
+<div id="game-container">
+
+<svg id="game-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+<defs>
+  <!-- Player: Oil Rig / Drill -->
+  <g id="player-shape">
+    <rect x="-10" y="-18" width="20" height="4" fill="#c0c0c0"/>
+    <rect x="-6" y="-14" width="12" height="20" fill="#e94560"/>
+    <rect x="-8" y="-14" width="2" height="20" fill="#b03050"/>
+    <rect x="6" y="-14" width="2" height="20" fill="#b03050"/>
+    <rect x="-4" y="6" width="8" height="6" fill="#f5a623"/>
+    <rect x="-2" y="12" width="4" height="6" fill="#aaa"/>
+    <rect x="-1" y="18" width="2" height="4" fill="#fff"/>
+    <!-- Drill bit animation target -->
+    <rect class="drill-bit" x="-3" y="16" width="6" height="2" fill="#ff6"/>
+  </g>
+
+  <!-- Certificate base shape -->
+  <g id="cert-shape">
+    <rect x="-8" y="-10" width="16" height="20" rx="1" fill="#fff" opacity=".9"/>
+    <rect x="-6" y="-6" width="12" height="2" fill="#333" opacity=".4"/>
+    <rect x="-6" y="-2" width="10" height="2" fill="#333" opacity=".4"/>
+    <rect x="-6" y="2" width="8" height="2" fill="#333" opacity=".4"/>
+    <circle cx="0" cy="8" r="3" fill="gold" stroke="#c90" stroke-width=".5"/>
+  </g>
+
+  <!-- Particle -->
+  <circle id="particle-shape" r="3" fill="#fff"/>
+
+  <!-- Eco activist (stick figure with sign) -->
+  <g id="enemy-eco">
+    <circle cx="0" cy="-10" r="5" fill="#4caf50"/>
+    <rect x="-1" y="-5" width="2" height="12" fill="#4caf50"/>
+    <line x1="-6" y1="-2" x2="6" y2="-2" stroke="#4caf50" stroke-width="2"/>
+    <line x1="-3" y1="7" x2="-6" y2="14" stroke="#4caf50" stroke-width="2"/>
+    <line x1="3" y1="7" x2="6" y2="14" stroke="#4caf50" stroke-width="2"/>
+    <rect x="4" y="-16" width="10" height="8" fill="#8bc34a"/>
+    <rect x="8" y="-16" width="1" height="14" fill="#795548"/>
+    <text x="9" y="-10" text-anchor="middle" font-size="5" fill="#fff">NO</text>
+  </g>
+
+  <!-- Bureaucrat (flying folder) -->
+  <g id="enemy-bureau">
+    <rect x="-10" y="-7" width="20" height="14" rx="1" fill="#ff9800"/>
+    <rect x="-10" y="-7" width="20" height="4" fill="#f57c00"/>
+    <rect x="-7" y="-1" width="14" height="2" fill="#fff3e0" opacity=".6"/>
+    <rect x="-7" y="3" width="10" height="2" fill="#fff3e0" opacity=".6"/>
+    <polygon points="-12,-3 -10,-7 -10,7 -12,3" fill="#e65100" opacity=".6"/>
+    <polygon points="12,-3 10,-7 10,7 12,3" fill="#e65100" opacity=".6"/>
+  </g>
+
+  <!-- Government official (suit) -->
+  <g id="enemy-gov">
+    <circle cx="0" cy="-10" r="5" fill="#ffcc80"/>
+    <rect x="-7" y="-5" width="14" height="16" rx="1" fill="#37474f"/>
+    <rect x="-1" y="-5" width="2" height="16" fill="#263238"/>
+    <polygon points="0,-3 -3,2 3,2" fill="#e94560"/>
+    <line x1="-4" y1="11" x2="-6" y2="18" stroke="#37474f" stroke-width="3"/>
+    <line x1="4" y1="11" x2="6" y2="18" stroke="#37474f" stroke-width="3"/>
+    <rect x="-6" y="-14" width="12" height="4" rx="1" fill="#212121"/>
+    <rect x="-8" y="-11" width="16" height="2" fill="#212121"/>
+  </g>
+
+  <!-- Boss 1: Eco Alliance Leader (big tree) - scaled 2x -->
+  <g id="boss-eco" transform="scale(2)">
+    <rect x="-6" y="10" width="12" height="20" fill="#795548"/>
+    <circle cx="0" cy="-5" r="22" fill="#2e7d32"/>
+    <circle cx="-12" cy="0" r="14" fill="#388e3c"/>
+    <circle cx="12" cy="0" r="14" fill="#388e3c"/>
+    <circle cx="0" cy="-15" r="12" fill="#43a047"/>
+    <circle cx="-2" cy="-6" r="3" fill="#fff"/>
+    <circle cx="6" cy="-6" r="3" fill="#fff"/>
+    <circle cx="-2" cy="-6" r="1.5" fill="#000"/>
+    <circle cx="6" cy="-6" r="1.5" fill="#000"/>
+    <rect x="-4" y="2" width="10" height="3" rx="1" fill="#1b5e20"/>
+  </g>
+
+  <!-- Boss 2: Mega Bank Vault (safe) - scaled 1.8x -->
+  <g id="boss-bank" transform="scale(1.8)">
+    <rect x="-28" y="-24" width="56" height="48" rx="3" fill="#607d8b"/>
+    <rect x="-26" y="-22" width="52" height="44" rx="2" fill="#78909c"/>
+    <circle cx="0" cy="0" r="14" fill="#455a64" stroke="#90a4ae" stroke-width="2"/>
+    <circle cx="0" cy="0" r="10" fill="#37474f"/>
+    <rect x="-1" y="-12" width="2" height="24" fill="#b0bec5"/>
+    <rect x="-12" y="-1" width="24" height="2" fill="#b0bec5"/>
+    <circle cx="0" cy="0" r="3" fill="#cfd8dc"/>
+    <rect x="16" y="-4" width="6" height="8" rx="1" fill="#455a64"/>
+    <circle cx="-20" cy="-16" r="2" fill="#f44336"/>
+    <text x="0" y="-28" text-anchor="middle" font-size="8" fill="#f44336" font-weight="bold">$$$</text>
+  </g>
+
+  <!-- Boss 3: Slick Senator - scaled 2x -->
+  <g id="boss-senator" transform="scale(2)">
+    <circle cx="0" cy="-16" r="10" fill="#ffcc80"/>
+    <rect x="-14" y="-6" width="28" height="28" rx="2" fill="#1a237e"/>
+    <rect x="-2" y="-6" width="4" height="28" fill="#0d1547"/>
+    <polygon points="0,-4 -5,4 5,4" fill="#c62828"/>
+    <rect x="-12" y="-24" width="24" height="6" rx="2" fill="#0d47a1"/>
+    <rect x="-16" y="-19" width="32" height="3" fill="#0d47a1"/>
+    <circle cx="-4" cy="-17" r="2" fill="#fff"/>
+    <circle cx="4" cy="-17" r="2" fill="#fff"/>
+    <circle cx="-4" cy="-17" r="1" fill="#000"/>
+    <circle cx="4" cy="-17" r="1" fill="#000"/>
+    <rect x="-6" y="-10" width="12" height="2" rx="1" fill="#d4a06a"/>
+    <line x1="-10" y1="22" x2="-14" y2="36" stroke="#1a237e" stroke-width="5"/>
+    <line x1="10" y1="22" x2="14" y2="36" stroke="#1a237e" stroke-width="5"/>
+  </g>
+
+  <!-- Projectile shapes -->
+  <g id="proj-leaf">
+    <ellipse rx="4" ry="8" fill="#66bb6a" transform="rotate(30)"/>
+    <line x1="0" y1="-6" x2="0" y2="6" stroke="#388e3c" stroke-width="1"/>
+  </g>
+  <g id="proj-coin">
+    <circle r="5" fill="#fdd835" stroke="#f9a825" stroke-width="1"/>
+    <text x="0" y="2" text-anchor="middle" font-size="7" fill="#f57f17" font-weight="bold">$</text>
+  </g>
+  <g id="proj-speech">
+    <rect x="-8" y="-5" width="16" height="10" rx="3" fill="#fff"/>
+    <polygon points="-3,5 0,9 3,5" fill="#fff"/>
+    <text x="0" y="1" text-anchor="middle" font-size="6" fill="#c62828">!?</text>
+  </g>
+
+  <!-- Weapon pickups -->
+  <g id="wpn-drillshot-icon">
+    <circle r="12" fill="#e94560" opacity=".25"/>
+    <rect x="-3" y="-8" width="6" height="12" rx="1" fill="#e94560"/>
+    <rect x="-2" y="4" width="4" height="4" fill="#f5a623"/>
+    <rect x="-1" y="8" width="2" height="3" fill="#fff"/>
+    <polygon points="-4,-8 0,-13 4,-8" fill="#c0c0c0"/>
+  </g>
+  <g id="wpn-oilspray-icon">
+    <circle r="12" fill="#222" opacity=".3"/>
+    <circle r="8" fill="none" stroke="#333" stroke-width="3"/>
+    <circle r="4" fill="#111"/>
+    <circle r="2" fill="#555"/>
+  </g>
+  <g id="wpn-wrench-icon">
+    <circle r="12" fill="#607d8b" opacity=".25"/>
+    <rect x="-2" y="-10" width="4" height="16" rx="1" fill="#90a4ae"/>
+    <rect x="-5" y="-10" width="10" height="4" rx="1" fill="#78909c"/>
+    <rect x="-4" y="4" width="8" height="3" rx="1" fill="#78909c"/>
+  </g>
+
+  <!-- Weapon projectiles -->
+  <g id="proj-drill">
+    <rect x="-2" y="-5" width="4" height="8" rx="1" fill="#e94560"/>
+    <polygon points="-3,-5 0,-9 3,-5" fill="#c0c0c0"/>
+    <rect x="-1" y="3" width="2" height="2" fill="#f5a623"/>
+  </g>
+  <g id="proj-wrench">
+    <rect x="-3" y="-8" width="6" height="14" rx="1" fill="#90a4ae"/>
+    <rect x="-5" y="-8" width="10" height="3" rx="1" fill="#78909c"/>
+    <rect x="-4" y="4" width="8" height="3" rx="1" fill="#78909c"/>
+  </g>
+</defs>
+
+<!-- Background grid -->
+<g id="bg-layer" opacity=".15"></g>
+
+<!-- Game entities layer -->
+<g id="entity-layer"></g>
+
+<!-- Particle layer -->
+<g id="particle-layer"></g>
+
+<!-- UI layer -->
+<g id="ui-layer">
+  <rect id="hud-bg" x="0" y="0" width="800" height="32" fill="#0f0f23" opacity=".85"/>
+  <text id="hud-score" x="15" y="22" fill="#f5a623" font-family="'Courier New',monospace" font-size="16">SCORE: 0</text>
+  <text id="hud-level" x="300" y="22" fill="#e94560" font-family="'Courier New',monospace" font-size="16">LEVEL 1</text>
+  <text id="hud-wave" x="480" y="22" fill="#aaa" font-family="'Courier New',monospace" font-size="14">WAVE 1/5</text>
+  <text id="hud-hi" x="640" y="22" fill="#f5a623" font-family="'Courier New',monospace" font-size="13">HI: 0</text>
+  <!-- Health bar -->
+  <rect x="14" y="28" width="102" height="8" fill="#333" rx="1"/>
+  <rect id="hud-hp" x="15" y="29" width="100" height="6" fill="#4caf50" rx="1"/>
+  <text x="15" y="45" fill="#888" font-family="'Courier New',monospace" font-size="9">HP</text>
+  <!-- Weapon HUD -->
+  <g id="hud-weapons" transform="translate(130,30)"></g>
+  <!-- Level message -->
+  <text id="level-msg" x="400" y="300" text-anchor="middle" fill="#fff" font-family="'Courier New',monospace" font-size="28" opacity="0"></text>
+</g>
+</svg>
+
+<!-- Menu Screen -->
+<div id="menu-screen" class="screen-overlay">
+  <div class="title">DRILL SURVIVOR</div>
+  <div class="subtitle">You are an oil rig fighting through eco activists, bureaucrats, and politicians.<br>Move to survive. Drill enemies on contact. Collect certificates for power.</div>
+  <button class="btn" id="btn-start">START DRILLING</button>
+  <div class="high-score-display" id="menu-hi">HIGH SCORE: 0</div>
+  <div class="controls-hint">WASD or Arrow Keys to move</div>
+</div>
+
+<!-- Game Over Screen -->
+<div id="gameover-screen" class="screen-overlay hidden">
+  <div class="title" style="font-size:36px">DRILL BUSTED</div>
+  <div class="game-over-score" id="go-score">SCORE: 0</div>
+  <div class="high-score-display" id="go-hi">HIGH SCORE: 0</div>
+  <button class="btn" id="btn-retry">RETRY LEVEL</button>
+  <button class="btn" id="btn-menu" style="font-size:14px;padding:8px 20px">MAIN MENU</button>
+</div>
+
+<!-- Victory Screen -->
+<div id="victory-screen" class="screen-overlay hidden">
+  <div class="title" style="font-size:30px;color:#f5a623">YOU ARE A WINNER!</div>
+  <div class="subtitle" style="color:#f5a623;font-size:18px;max-width:550px">
+    You drilled through eco activists, bureaucrats, and politicians.<br><br>
+    <span style="color:#4caf50;font-size:22px;letter-spacing:2px">You are ready to build your own oil rig!</span><br><br>
+    <span style="color:#aaa;font-size:14px">The world is your drilling ground.</span>
+  </div>
+  <div class="game-over-score" id="vic-score">FINAL SCORE: 0</div>
+  <div class="high-score-display" id="vic-hi">HIGH SCORE: 0</div>
+  <button class="btn" style="border-color:#f5a623;color:#f5a623" id="btn-vic-menu">MAIN MENU</button>
+</div>
+
+</div>
+
+<script>
+(function() {
+"use strict";
+
+// ─── CONSTANTS ──────────────────────────────────────────────
+const W = 800, H = 600;
+const PLAYER_SPEED = 3.2;
+const PLAYER_MAX_HP = 100;
+const PLAYER_DRILL_DMG = 40;
+const PLAYER_HIT_DMG = 5;
+const PLAYER_IFRAME = 400;
+const CERT_SPAWN_INTERVAL = 3500;
+const PARTICLE_LIFE = 600;
+const BOSS_SPAWN_DELAY = 2000;
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+const BOSS_SCORE_INTERVAL = 500;
+
+const LEVEL_DATA = [
+  {
+    name: "Eco Storm",
+    msg: "Navigate the eco storm!",
+    enemyId: "enemy-eco",
+    certColor: "#4caf50",
+    bossId: "boss-eco",
+    bossHp: 300,
+    bossSpeed: 1.2,
+    projId: "proj-leaf",
+    projSpeed: 2.8,
+    bossShootInterval: 900,
+    bgColor: "#0a1f0a",
+    enemyHp: 30,
+    enemySpeed: 1.0,
+    spawnInterval: 1400,
+    squareSize: 8,
+  },
+  {
+    name: "Red Tape",
+    msg: "Cut through red tape!",
+    enemyId: "enemy-bureau",
+    certColor: "#ff5722",
+    bossId: "boss-bank",
+    bossHp: 400,
+    bossSpeed: 0.8,
+    projId: "proj-coin",
+    projSpeed: 3.2,
+    bossShootInterval: 700,
+    bgColor: "#1a1000",
+    enemyHp: 38,
+    enemySpeed: 1.3,
+    spawnInterval: 1200,
+    squareSize: 10,
+  },
+  {
+    name: "Capitol Hill",
+    msg: "Drill past politics!",
+    enemyId: "enemy-gov",
+    certColor: "#2196f3",
+    bossId: "boss-senator",
+    bossHp: 500,
+    bossSpeed: 1.0,
+    projId: "proj-speech",
+    projSpeed: 3.5,
+    bossShootInterval: 600,
+    bgColor: "#0f0a1e",
+    enemyHp: 45,
+    enemySpeed: 1.5,
+    spawnInterval: 1000,
+    squareSize: 12,
+  }
+];
+
+// ─── DOM REFS ───────────────────────────────────────────────
+const svg = document.getElementById("game-svg");
+const bgLayer = document.getElementById("bg-layer");
+const entityLayer = document.getElementById("entity-layer");
+const particleLayer = document.getElementById("particle-layer");
+const hudScore = document.getElementById("hud-score");
+const hudLevel = document.getElementById("hud-level");
+const hudWave = document.getElementById("hud-wave");
+const hudHi = document.getElementById("hud-hi");
+const hudHp = document.getElementById("hud-hp");
+const levelMsg = document.getElementById("level-msg");
+
+const menuScreen = document.getElementById("menu-screen");
+const goScreen = document.getElementById("gameover-screen");
+const vicScreen = document.getElementById("victory-screen");
+
+const btnStart = document.getElementById("btn-start");
+const btnRetry = document.getElementById("btn-retry");
+const btnMenu = document.getElementById("btn-menu");
+const btnVicMenu = document.getElementById("btn-vic-menu");
+
+// ─── GAME STATE ─────────────────────────────────────────────
+let state = "menu"; // menu | playing | gameover | victory
+let score = 0;
+let hiScore = parseInt(localStorage.getItem("drillSurvivorHi")) || 0;
+let currentLevel = 0;
+let bossActive = false;
+let bossDefeated = false;
+let bossTriggered = false;
+let bossSpawnCountdown = -1;
+let enemySpawnTimer = 0;
+let levelMsgTimer = 0;
+let certTimer = 0;
+let lastTime = 0;
+let speedBonus = 0;
+let drillBonus = 0;
+
+// ─── INPUT ──────────────────────────────────────────────────
+const keys = {};
+document.addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
+  if (["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
+});
+document.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+// ─── ENTITY ARRAYS ──────────────────────────────────────────
+let player = null;
+let enemies = [];
+let projectiles = [];
+let items = [];
+let weaponPickups = [];
+let playerBullets = [];
+let orbitals = [];
+let particles = [];
+let playerWeapons = {};
+
+const WEAPON_DEFS = {
+  drillshot: {
+    name: "Drill Shot",
+    icon: "wpn-drillshot-icon",
+    projId: "proj-drill",
+    color: "#e94560",
+    baseCooldown: 800,
+    baseDamage: 25,
+    baseSpeed: 5,
+    baseCount: 1,
+    // per-level upgrades
+    cdReduce: 80,
+    dmgAdd: 5,
+    countAt: [3, 5],
+  },
+  oilspray: {
+    name: "Oil Spray",
+    icon: "wpn-oilspray-icon",
+    color: "#333",
+    baseCooldown: 1200,
+    baseDamage: 15,
+    baseRadius: 60,
+    cdReduce: 100,
+    dmgAdd: 4,
+    radiusAdd: 8,
+  },
+  wrench: {
+    name: "Pipe Wrench",
+    icon: "wpn-wrench-icon",
+    projId: "proj-wrench",
+    color: "#90a4ae",
+    baseCooldown: 100,
+    baseDamage: 12,
+    baseCount: 1,
+    orbitRadius: 50,
+    orbitSpeed: 0.004,
+    dmgAdd: 3,
+    countAt: [2, 4],
+    radiusAdd: 8,
+  }
+};
+const WEAPON_KEYS = ["drillshot", "oilspray", "wrench"];
+const WEAPON_SPAWN_INTERVAL = 6000;
+let weaponSpawnTimer = 0;
+
+// ─── HELPERS ────────────────────────────────────────────────
+function createSvgUse(id, x, y) {
+  const el = document.createElementNS(SVG_NS, "use");
+  el.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#" + id);
+  el.setAttribute("x", x);
+  el.setAttribute("y", y);
+  return el;
+}
+
+function createSvgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function dist(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function rnd(lo, hi) { return lo + Math.random() * (hi - lo); }
+
+function randomEdgePos() {
+  const side = Math.floor(Math.random() * 4);
+  switch (side) {
+    case 0: return { x: rnd(0, W), y: -30 };
+    case 1: return { x: rnd(0, W), y: H + 30 };
+    case 2: return { x: -30, y: rnd(40, H) };
+    case 3: return { x: W + 30, y: rnd(40, H) };
+  }
+}
+
+function saveHi() {
+  if (score > hiScore) {
+    hiScore = score;
+    localStorage.setItem("drillSurvivorHi", hiScore);
+  }
+}
+
+// ─── BACKGROUND GRID ────────────────────────────────────────
+function drawBgGrid(color) {
+  while (bgLayer.firstChild) bgLayer.removeChild(bgLayer.firstChild);
+  const c = color || "#1a1a3e";
+  svg.style.background = c;
+  for (let x = 0; x < W; x += 40) {
+    bgLayer.appendChild(createSvgEl("line", { x1: x, y1: 0, x2: x, y2: H, stroke: "#fff", "stroke-width": ".5" }));
+  }
+  for (let y = 0; y < H; y += 40) {
+    bgLayer.appendChild(createSvgEl("line", { x1: 0, y1: y, x2: W, y2: y, stroke: "#fff", "stroke-width": ".5" }));
+  }
+}
+
+// ─── PARTICLES ──────────────────────────────────────────────
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const el = createSvgEl("circle", { cx: x, cy: y, r: rnd(2, 5), fill: color, opacity: "1" });
+    particleLayer.appendChild(el);
+    particles.push({
+      el,
+      x, y,
+      vx: rnd(-3, 3),
+      vy: rnd(-3, 3),
+      life: PARTICLE_LIFE,
+      maxLife: PARTICLE_LIFE,
+      r: rnd(2, 5)
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    p.x += p.vx;
+    p.y += p.vy;
+    const t = Math.max(0, p.life / p.maxLife);
+    if (p.isText) {
+      p.el.setAttribute("x", p.x);
+      p.el.setAttribute("y", p.y);
+      p.el.setAttribute("opacity", t);
+    } else if (p.isRing) {
+      p.el.setAttribute("opacity", t * 0.6);
+      p.el.setAttribute("r", p.radius * (1 + (1 - t) * 0.3));
+    } else {
+      p.vx *= 0.96;
+      p.vy *= 0.96;
+      p.el.setAttribute("cx", p.x);
+      p.el.setAttribute("cy", p.y);
+      p.el.setAttribute("r", p.r * t);
+      p.el.setAttribute("opacity", t);
+    }
+    if (p.life <= 0) {
+      particleLayer.removeChild(p.el);
+      particles.splice(i, 1);
+    }
+  }
+}
+
+// ─── PLAYER ─────────────────────────────────────────────────
+function createPlayer() {
+  const g = document.createElementNS(SVG_NS, "g");
+  const use = createSvgUse("player-shape", 0, 0);
+  g.appendChild(use);
+  // Drill-bit glow rendered outside <use> so we can animate it
+  const drillGlow = createSvgEl("rect", { x: -3, y: 16, width: 6, height: 2, fill: "#ff6" });
+  drillGlow.classList.add("drill-glow");
+  g.appendChild(drillGlow);
+  entityLayer.appendChild(g);
+  player = {
+    el: g,
+    drillGlow,
+    x: W / 2,
+    y: H / 2,
+    hp: PLAYER_MAX_HP,
+    maxHp: PLAYER_MAX_HP,
+    radius: 14,
+    iframeUntil: 0,
+    drillAnim: 0,
+    flash: 0
+  };
+  updatePlayerPos();
+}
+
+function updatePlayerPos() {
+  player.el.setAttribute("transform", `translate(${player.x},${player.y})`);
+}
+
+function updatePlayer(dt, now) {
+  let dx = 0, dy = 0;
+  if (keys["w"] || keys["arrowup"]) dy = -1;
+  if (keys["s"] || keys["arrowdown"]) dy = 1;
+  if (keys["a"] || keys["arrowleft"]) dx = -1;
+  if (keys["d"] || keys["arrowright"]) dx = 1;
+
+  if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+  const sp = (PLAYER_SPEED + speedBonus) * (dt / 16);
+  player.x = clamp(player.x + dx * sp, 16, W - 16);
+  player.y = clamp(player.y + dy * sp, 40, H - 16);
+  updatePlayerPos();
+
+  player.drillAnim += dt;
+  if (player.drillGlow) {
+    player.drillGlow.setAttribute("opacity", Math.sin(player.drillAnim / 80) * 0.5 + 0.5);
+  }
+
+  // Flash on damage
+  if (player.flash > 0) {
+    player.flash -= dt;
+    player.el.setAttribute("opacity", Math.sin(player.flash / 40) > 0 ? "0.4" : "1");
+  } else {
+    player.el.setAttribute("opacity", "1");
+  }
+
+  // Update HP bar
+  const hpPct = Math.max(0, player.hp / player.maxHp);
+  hudHp.setAttribute("width", 100 * hpPct);
+  if (hpPct > 0.5) hudHp.setAttribute("fill", "#4caf50");
+  else if (hpPct > 0.25) hudHp.setAttribute("fill", "#ff9800");
+  else hudHp.setAttribute("fill", "#f44336");
+}
+
+function damagePlayer(amount, now) {
+  if (now < player.iframeUntil) return;
+  player.hp -= amount;
+  player.iframeUntil = now + PLAYER_IFRAME;
+  player.flash = PLAYER_IFRAME;
+  spawnParticles(player.x, player.y, "#e94560", 4);
+  if (player.hp <= 0) {
+    player.hp = 0;
+    gameOver();
+  }
+}
+
+// ─── ENEMIES ────────────────────────────────────────────────
+function spawnEnemy(shapeId, hp, speed) {
+  const pos = randomEdgePos();
+  const el = createSvgUse(shapeId, 0, 0);
+  const g = document.createElementNS(SVG_NS, "g");
+  g.appendChild(el);
+  entityLayer.appendChild(g);
+  enemies.push({
+    el: g,
+    x: pos.x,
+    y: pos.y,
+    hp,
+    maxHp: hp,
+    speed,
+    radius: 12,
+    hitCooldown: 0
+  });
+}
+
+function updateEnemies(dt, now) {
+  const lvl = LEVEL_DATA[currentLevel];
+  const SEP_RADIUS = 30;
+  const SEP_FORCE = 1.5;
+
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+
+    // Chase player
+    const dx = player.x - e.x;
+    const dy = player.y - e.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    let mx = (dx / d) * e.speed;
+    let my = (dy / d) * e.speed;
+
+    // Separation: push away from nearby enemies
+    for (let j = 0; j < enemies.length; j++) {
+      if (j === i) continue;
+      const o = enemies[j];
+      const sx = e.x - o.x;
+      const sy = e.y - o.y;
+      const sd = Math.sqrt(sx * sx + sy * sy) || 0.1;
+      if (sd < SEP_RADIUS) {
+        const push = (SEP_RADIUS - sd) / SEP_RADIUS * SEP_FORCE;
+        mx += (sx / sd) * push;
+        my += (sy / sd) * push;
+      }
+    }
+
+    e.x += mx * (dt / 16);
+    e.y += my * (dt / 16);
+    e.x = clamp(e.x, -20, W + 20);
+    e.y = clamp(e.y, -20, H + 20);
+    e.el.setAttribute("transform", `translate(${e.x},${e.y})`);
+
+    e.hitCooldown = Math.max(0, e.hitCooldown - dt);
+
+    // Collision with player — drill damage
+    if (dist(e, player) < player.radius + e.radius && e.hitCooldown <= 0) {
+      e.hp -= (PLAYER_DRILL_DMG + drillBonus);
+      e.hitCooldown = 300;
+      damagePlayer(PLAYER_HIT_DMG, now);
+      spawnParticles(e.x, e.y, "#fff", 3);
+    }
+
+    // Death check (always runs, not gated by collision)
+    if (e.hp <= 0) {
+      score += 10;
+      spawnParticles(e.x, e.y, lvl.certColor, 8);
+      entityLayer.removeChild(e.el);
+      enemies.splice(i, 1);
+    }
+  }
+}
+
+// ─── BOSS ───────────────────────────────────────────────────
+let boss = null;
+let bossShootTimer = 0;
+
+function spawnBoss() {
+  const lvl = LEVEL_DATA[currentLevel];
+  const el = createSvgUse(lvl.bossId, 0, 0);
+  const g = document.createElementNS(SVG_NS, "g");
+  g.appendChild(el);
+
+  // HP bar for boss (wider to match scaled-up boss)
+  const hpBg = createSvgEl("rect", { x: -50, y: -75, width: 100, height: 8, fill: "#333", rx: "2" });
+  const hpBar = createSvgEl("rect", { x: -50, y: -75, width: 100, height: 8, fill: "#f44336", rx: "2" });
+  hpBar.id = "boss-hp-bar";
+  g.appendChild(hpBg);
+  g.appendChild(hpBar);
+
+  // Boss name
+  const nameText = createSvgEl("text", {
+    x: 0, y: -82,
+    "text-anchor": "middle",
+    fill: "#e94560",
+    "font-family": "'Courier New',monospace",
+    "font-size": "14",
+    "font-weight": "bold"
+  });
+  nameText.textContent = currentLevel === 0 ? "ECO ALLIANCE LEADER" : currentLevel === 1 ? "MEGA BANK VAULT" : "SLICK SENATOR";
+  g.appendChild(nameText);
+
+  entityLayer.appendChild(g);
+
+  boss = {
+    el: g,
+    x: W / 2,
+    y: -100,
+    targetY: 140,
+    hp: lvl.bossHp,
+    maxHp: lvl.bossHp,
+    speed: lvl.bossSpeed,
+    radius: 55,
+    hitCooldown: 0,
+    phase: "enter",
+    angle: 0,
+    projId: lvl.projId,
+    projSpeed: lvl.projSpeed,
+    shootInterval: lvl.bossShootInterval
+  };
+  bossShootTimer = 0;
+  bossAttackCount = 0;
+  bossActive = true;
+}
+
+function updateBoss(dt, now) {
+  if (!boss) return;
+  const b = boss;
+  const lvl = LEVEL_DATA[currentLevel];
+
+  if (b.phase === "enter") {
+    b.y += 1.5 * (dt / 16);
+    if (b.y >= b.targetY) {
+      b.y = b.targetY;
+      b.phase = "fight";
+    }
+  } else {
+    // Move in a pattern
+    b.angle += 0.02 * (dt / 16);
+    b.x = W / 2 + Math.sin(b.angle) * 220;
+    b.y = 150 + Math.sin(b.angle * 0.7) * 50;
+
+    bossShootTimer += dt;
+    if (bossShootTimer >= b.shootInterval) {
+      bossShootTimer = 0;
+      bossAttack(b);
+    }
+  }
+
+  b.el.setAttribute("transform", `translate(${b.x},${b.y})`);
+
+  b.hitCooldown = Math.max(0, b.hitCooldown - dt);
+
+  // Collision with player — full drill damage to boss
+  if (dist(b, player) < player.radius + b.radius && b.hitCooldown <= 0) {
+    b.hp -= (PLAYER_DRILL_DMG + drillBonus);
+    b.hitCooldown = 180;
+    damagePlayer(PLAYER_HIT_DMG, now);
+    spawnParticles(b.x, b.y, "#fff", 5);
+  }
+
+  const hpBar = b.el.querySelector("#boss-hp-bar");
+  if (hpBar) {
+    const pct = Math.max(0, b.hp / b.maxHp);
+    hpBar.setAttribute("width", 100 * pct);
+  }
+
+  if (b.hp <= 0) {
+    spawnParticles(b.x, b.y, "#f5a623", 20);
+    spawnParticles(b.x, b.y, "#e94560", 15);
+    score += 200;
+    entityLayer.removeChild(b.el);
+    boss = null;
+    bossActive = false;
+    bossDefeated = true;
+    // Heal player after boss kill
+    if (player) {
+      const heal = Math.round(player.maxHp * 0.4);
+      player.hp = Math.min(player.maxHp, player.hp + heal);
+      showFloatingText(player.x, player.y - 30, "BOSS DOWN! +" + heal + "HP", "#f5a623");
+    }
+  }
+}
+
+let bossAttackCount = 0;
+
+function bossAttack(b) {
+  bossAttackCount++;
+  const lvl = LEVEL_DATA[currentLevel];
+
+  // Every 3rd attack: spawn a square formation of enemies around the player
+  if (bossAttackCount % 3 === 0) {
+    spawnEnemySquare(lvl.squareSize, lvl.enemyId, lvl.enemyHp, lvl.enemySpeed * 0.8);
+    spawnParticles(b.x, b.y, "#e94560", 10);
+    return;
+  }
+
+  // Normal attack: shoot projectiles at the player
+  const dx = player.x - b.x;
+  const dy = player.y - b.y;
+  const count = 2 + currentLevel;
+  for (let i = 0; i < count; i++) {
+    let angle = Math.atan2(dy, dx);
+    angle += (i - (count - 1) / 2) * 0.35;
+
+    const el = createSvgUse(b.projId, 0, 0);
+    const g = document.createElementNS(SVG_NS, "g");
+    g.appendChild(el);
+    entityLayer.appendChild(g);
+
+    projectiles.push({
+      el: g,
+      x: b.x,
+      y: b.y,
+      vx: Math.cos(angle) * b.projSpeed,
+      vy: Math.sin(angle) * b.projSpeed,
+      radius: 6,
+      damage: 12
+    });
+  }
+}
+
+function spawnEnemySquare(count, shapeId, hp, speed) {
+  const cx = player.x;
+  const cy = player.y;
+  const spacing = 120;
+  const perSide = Math.max(1, Math.floor(count / 4));
+  let placed = 0;
+
+  for (let side = 0; side < 4 && placed < count; side++) {
+    for (let i = 0; i < perSide && placed < count; i++) {
+      let ex, ey;
+      const t = (i / Math.max(1, perSide - 1)) * 2 - 1;
+      switch (side) {
+        case 0: ex = cx - spacing;        ey = cy + t * spacing; break;
+        case 1: ex = cx + spacing;        ey = cy + t * spacing; break;
+        case 2: ex = cx + t * spacing;    ey = cy - spacing; break;
+        case 3: ex = cx + t * spacing;    ey = cy + spacing; break;
+      }
+      ex = clamp(ex, 10, W - 10);
+      ey = clamp(ey, 40, H - 10);
+
+      const el = createSvgUse(shapeId, 0, 0);
+      const g = document.createElementNS(SVG_NS, "g");
+      g.appendChild(el);
+      entityLayer.appendChild(g);
+      enemies.push({ el: g, x: ex, y: ey, hp, maxHp: hp, speed, radius: 12, hitCooldown: 0 });
+      spawnParticles(ex, ey, "#e94560", 3);
+      placed++;
+    }
+  }
+}
+
+function updateProjectiles(dt, now) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.vx * (dt / 16);
+    p.y += p.vy * (dt / 16);
+    p.el.setAttribute("transform", `translate(${p.x},${p.y})`);
+
+    // Off screen
+    if (p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40) {
+      entityLayer.removeChild(p.el);
+      projectiles.splice(i, 1);
+      continue;
+    }
+
+    // Hit player
+    if (dist(p, player) < player.radius + p.radius) {
+      damagePlayer(p.damage, now);
+      spawnParticles(p.x, p.y, "#ff6", 4);
+      entityLayer.removeChild(p.el);
+      projectiles.splice(i, 1);
+    }
+  }
+}
+
+// ─── ITEMS (CERTIFICATES) ───────────────────────────────────
+function spawnCert() {
+  const lvl = LEVEL_DATA[currentLevel];
+  const x = rnd(40, W - 40);
+  const y = rnd(60, H - 40);
+
+  const g = document.createElementNS(SVG_NS, "g");
+  const use = createSvgUse("cert-shape", 0, 0);
+  g.appendChild(use);
+
+  // Color tint
+  const tint = createSvgEl("rect", { x: -8, y: -10, width: 16, height: 20, rx: "1", fill: lvl.certColor, opacity: ".2" });
+  g.appendChild(tint);
+
+  // Glow
+  const glow = createSvgEl("circle", { cx: 0, cy: 0, r: 14, fill: lvl.certColor, opacity: ".15" });
+  g.insertBefore(glow, g.firstChild);
+
+  entityLayer.appendChild(g);
+
+  items.push({
+    el: g,
+    x, y,
+    radius: 12,
+    bobPhase: Math.random() * Math.PI * 2,
+    age: 0
+  });
+}
+
+function updateItems(dt, now) {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    it.age += dt;
+    it.bobPhase += 0.003 * dt;
+    const bobY = it.y + Math.sin(it.bobPhase) * 3;
+    it.el.setAttribute("transform", `translate(${it.x},${bobY})`);
+
+    if (dist(it, player) < player.radius + it.radius) {
+      score += 25;
+      spawnParticles(it.x, it.y, "#f5a623", 6);
+      entityLayer.removeChild(it.el);
+      items.splice(i, 1);
+
+      const roll = Math.random();
+      if (roll < 0.3) {
+        player.hp = Math.min(player.maxHp, player.hp + 10);
+        showFloatingText(it.x, it.y - 20, "+HP", "#4caf50");
+      } else if (roll < 0.55) {
+        speedBonus = Math.min(speedBonus + 0.12, 1.8);
+        showFloatingText(it.x, it.y - 20, "+SPD", "#2196f3");
+      } else if (roll < 0.8) {
+        drillBonus = Math.min(drillBonus + 2, 16);
+        showFloatingText(it.x, it.y - 20, "+DMG", "#e94560");
+      } else {
+        player.maxHp = Math.min(player.maxHp + 3, 120);
+        player.hp = Math.min(player.hp + 3, player.maxHp);
+        showFloatingText(it.x, it.y - 20, "+MAX HP", "#f5a623");
+      }
+    }
+  }
+}
+
+function showFloatingText(x, y, text, color) {
+  const el = createSvgEl("text", {
+    x, y,
+    "text-anchor": "middle",
+    fill: color,
+    "font-family": "'Courier New',monospace",
+    "font-size": "14",
+    "font-weight": "bold",
+    opacity: "1"
+  });
+  el.textContent = text;
+  particleLayer.appendChild(el);
+
+  const life = 800;
+  particles.push({
+    el, x, y,
+    vx: 0, vy: -1,
+    life, maxLife: life,
+    r: 1,
+    isText: true
+  });
+}
+
+// ─── WEAPONS SYSTEM ─────────────────────────────────────────
+function getWeaponLevel(key) { return playerWeapons[key] || 0; }
+
+function addWeapon(key) {
+  playerWeapons[key] = (playerWeapons[key] || 0) + 1;
+  const def = WEAPON_DEFS[key];
+  const lvl = playerWeapons[key];
+  showFloatingText(player.x, player.y - 30,
+    lvl === 1 ? def.name + "!" : def.name + " Lv" + lvl, def.color);
+  if (key === "wrench") rebuildOrbitals();
+  updateWeaponHud();
+}
+
+function rebuildOrbitals() {
+  for (const o of orbitals) entityLayer.removeChild(o.el);
+  orbitals = [];
+  const def = WEAPON_DEFS.wrench;
+  const lvl = getWeaponLevel("wrench");
+  if (!lvl) return;
+  let count = def.baseCount;
+  for (const threshold of def.countAt) { if (lvl >= threshold) count++; }
+  const radius = def.orbitRadius + (lvl - 1) * def.radiusAdd;
+  for (let i = 0; i < count; i++) {
+    const el = createSvgUse(def.projId, 0, 0);
+    const g = document.createElementNS(SVG_NS, "g");
+    g.appendChild(el);
+    entityLayer.appendChild(g);
+    orbitals.push({
+      el: g,
+      angle: (Math.PI * 2 / count) * i,
+      radius,
+      damage: def.baseDamage + (lvl - 1) * def.dmgAdd,
+      hitCooldown: 0,
+      x: 0, y: 0
+    });
+  }
+}
+
+function updateWeapons(dt, now) {
+  if (!player) return;
+
+  // Drill Shot
+  const dsLvl = getWeaponLevel("drillshot");
+  if (dsLvl > 0) {
+    const def = WEAPON_DEFS.drillshot;
+    if (!player.dsTimer) player.dsTimer = 0;
+    player.dsTimer += dt;
+    const cd = Math.max(200, def.baseCooldown - (dsLvl - 1) * def.cdReduce);
+    if (player.dsTimer >= cd && enemies.length > 0) {
+      player.dsTimer = 0;
+      let count = def.baseCount;
+      for (const t of def.countAt) { if (dsLvl >= t) count++; }
+      const dmg = def.baseDamage + (dsLvl - 1) * def.dmgAdd;
+      fireDrillShots(count, dmg, def.baseSpeed);
+    }
+  }
+
+  // Oil Spray
+  const osLvl = getWeaponLevel("oilspray");
+  if (osLvl > 0) {
+    const def = WEAPON_DEFS.oilspray;
+    if (!player.osTimer) player.osTimer = 0;
+    player.osTimer += dt;
+    const cd = Math.max(400, def.baseCooldown - (osLvl - 1) * def.cdReduce);
+    if (player.osTimer >= cd) {
+      player.osTimer = 0;
+      const dmg = def.baseDamage + (osLvl - 1) * def.dmgAdd;
+      const radius = def.baseRadius + (osLvl - 1) * def.radiusAdd;
+      doOilSpray(dmg, radius);
+    }
+  }
+
+  // Wrench Orbitals
+  const wrLvl = getWeaponLevel("wrench");
+  if (wrLvl > 0) {
+    const def = WEAPON_DEFS.wrench;
+    const speed = def.orbitSpeed * (1 + wrLvl * 0.15);
+    for (const o of orbitals) {
+      o.angle += speed * dt;
+      o.x = player.x + Math.cos(o.angle) * o.radius;
+      o.y = player.y + Math.sin(o.angle) * o.radius;
+      o.el.setAttribute("transform",
+        `translate(${o.x},${o.y}) rotate(${(o.angle * 180 / Math.PI) % 360})`);
+      o.hitCooldown = Math.max(0, o.hitCooldown - dt);
+    }
+  }
+
+  // Update player bullets
+  for (let i = playerBullets.length - 1; i >= 0; i--) {
+    const b = playerBullets[i];
+    b.x += b.vx * (dt / 16);
+    b.y += b.vy * (dt / 16);
+    b.life -= dt;
+    b.el.setAttribute("transform", `translate(${b.x},${b.y}) rotate(${b.rot})`);
+    if (b.life <= 0 || b.x < -20 || b.x > W + 20 || b.y < -20 || b.y > H + 20) {
+      entityLayer.removeChild(b.el);
+      playerBullets.splice(i, 1);
+      continue;
+    }
+    // Hit enemies
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      if (dist(b, enemies[j]) < enemies[j].radius + 5) {
+        enemies[j].hp -= b.damage;
+        spawnParticles(b.x, b.y, "#e94560", 3);
+        entityLayer.removeChild(b.el);
+        playerBullets.splice(i, 1);
+        break;
+      }
+    }
+    // Hit boss
+    if (playerBullets[i] && boss && dist(playerBullets[i], boss) < boss.radius) {
+      boss.hp -= playerBullets[i].damage;
+      spawnParticles(playerBullets[i].x, playerBullets[i].y, "#f5a623", 3);
+      entityLayer.removeChild(playerBullets[i].el);
+      playerBullets.splice(i, 1);
+    }
+  }
+
+  // Orbital hits on enemies + boss
+  for (const o of orbitals) {
+    if (o.hitCooldown > 0) continue;
+    for (const e of enemies) {
+      if (dist(o, e) < e.radius + 8) {
+        e.hp -= o.damage;
+        o.hitCooldown = 200;
+        spawnParticles(o.x, o.y, "#90a4ae", 2);
+        break;
+      }
+    }
+    if (o.hitCooldown <= 0 && boss && dist(o, boss) < boss.radius) {
+      boss.hp -= o.damage;
+      o.hitCooldown = 200;
+      spawnParticles(o.x, o.y, "#90a4ae", 2);
+    }
+  }
+}
+
+function fireDrillShots(count, damage, speed) {
+  // Find nearest enemies
+  const sorted = [...enemies];
+  if (boss) sorted.push(boss);
+  sorted.sort((a, b) => dist(a, player) - dist(b, player));
+  for (let i = 0; i < count && i < sorted.length; i++) {
+    const target = sorted[i];
+    const dx = target.x - player.x;
+    const dy = target.y - player.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const el = createSvgUse("proj-drill", 0, 0);
+    const g = document.createElementNS(SVG_NS, "g");
+    g.appendChild(el);
+    entityLayer.appendChild(g);
+    const angle = Math.atan2(dy, dx);
+    playerBullets.push({
+      el: g, x: player.x, y: player.y,
+      vx: (dx / d) * speed, vy: (dy / d) * speed,
+      damage, life: 2000,
+      rot: (angle * 180 / Math.PI) + 90
+    });
+  }
+  // If no enemies, fire in last movement direction
+  if (sorted.length === 0) {
+    const el = createSvgUse("proj-drill", 0, 0);
+    const g = document.createElementNS(SVG_NS, "g");
+    g.appendChild(el);
+    entityLayer.appendChild(g);
+    playerBullets.push({
+      el: g, x: player.x, y: player.y,
+      vx: 0, vy: -speed, damage, life: 1500, rot: 0
+    });
+  }
+}
+
+function doOilSpray(damage, radius) {
+  // Visual ring
+  const ring = createSvgEl("circle", {
+    cx: player.x, cy: player.y, r: radius,
+    fill: "none", stroke: "#333", "stroke-width": "4", opacity: ".6"
+  });
+  particleLayer.appendChild(ring);
+  particles.push({
+    el: ring, x: player.x, y: player.y,
+    vx: 0, vy: 0, life: 400, maxLife: 400, r: 1, isRing: true, radius
+  });
+  // Damage all enemies in range
+  for (const e of enemies) {
+    if (dist(e, player) < radius) {
+      e.hp -= damage;
+      spawnParticles(e.x, e.y, "#333", 2);
+    }
+  }
+  if (boss && dist(boss, player) < radius) {
+    boss.hp -= damage;
+    spawnParticles(boss.x, boss.y, "#333", 3);
+  }
+}
+
+// ─── WEAPON PICKUPS ─────────────────────────────────────────
+function spawnWeaponPickup() {
+  const key = WEAPON_KEYS[Math.floor(Math.random() * WEAPON_KEYS.length)];
+  const def = WEAPON_DEFS[key];
+  const x = rnd(50, W - 50);
+  const y = rnd(60, H - 50);
+
+  const g = document.createElementNS(SVG_NS, "g");
+  const use = createSvgUse(def.icon, 0, 0);
+  g.appendChild(use);
+
+  // Pulsing glow
+  const glow = createSvgEl("circle", { cx: 0, cy: 0, r: 16, fill: def.color, opacity: ".2" });
+  g.insertBefore(glow, g.firstChild);
+
+  entityLayer.appendChild(g);
+  weaponPickups.push({
+    el: g, x, y, key, radius: 14,
+    bobPhase: Math.random() * Math.PI * 2, age: 0
+  });
+}
+
+function updateWeaponPickups(dt) {
+  for (let i = weaponPickups.length - 1; i >= 0; i--) {
+    const wp = weaponPickups[i];
+    wp.age += dt;
+    wp.bobPhase += 0.004 * dt;
+    const bobY = wp.y + Math.sin(wp.bobPhase) * 4;
+    const pulse = 1 + Math.sin(wp.age / 300) * 0.1;
+    wp.el.setAttribute("transform", `translate(${wp.x},${bobY}) scale(${pulse})`);
+
+    if (dist(wp, player) < player.radius + wp.radius) {
+      addWeapon(wp.key);
+      spawnParticles(wp.x, wp.y, WEAPON_DEFS[wp.key].color, 8);
+      entityLayer.removeChild(wp.el);
+      weaponPickups.splice(i, 1);
+    }
+  }
+}
+
+function updateWeaponHud() {
+  const container = document.getElementById("hud-weapons");
+  while (container.firstChild) container.removeChild(container.firstChild);
+  let xOff = 0;
+  for (const key of WEAPON_KEYS) {
+    const lvl = getWeaponLevel(key);
+    if (!lvl) continue;
+    const def = WEAPON_DEFS[key];
+    const bg = createSvgEl("rect", {
+      x: xOff, y: -2, width: 50, height: 12, rx: 2,
+      fill: def.color, opacity: ".3"
+    });
+    container.appendChild(bg);
+    const txt = createSvgEl("text", {
+      x: xOff + 3, y: 8,
+      fill: "#fff", "font-family": "'Courier New',monospace", "font-size": "8"
+    });
+    txt.textContent = def.name.substring(0, 5) + " L" + lvl;
+    container.appendChild(txt);
+    xOff += 55;
+  }
+}
+
+// ─── SPAWN & BOSS TRIGGER ───────────────────────────────────
+function getBossThreshold() {
+  return (currentLevel + 1) * BOSS_SCORE_INTERVAL;
+}
+
+function updateSpawning(dt) {
+  const lvl = LEVEL_DATA[currentLevel];
+
+  // Boss spawn countdown
+  if (bossSpawnCountdown > 0) {
+    bossSpawnCountdown -= dt;
+    if (bossSpawnCountdown <= 0 && state === "playing") {
+      bossSpawnCountdown = -1;
+      spawnBoss();
+    }
+    return;
+  }
+
+  // Boss defeated → advance level
+  if (bossDefeated && !boss) {
+    if (enemies.length === 0 && projectiles.length === 0) {
+      nextLevel();
+    }
+    return;
+  }
+
+  // Boss active — no regular spawning, HUD shows boss
+  if (bossActive) {
+    hudWave.textContent = "★ BOSS ★";
+    return;
+  }
+
+  // Check if score reached boss threshold
+  if (!bossTriggered && score >= getBossThreshold()) {
+    bossTriggered = true;
+    bossSpawnCountdown = BOSS_SPAWN_DELAY;
+    hudWave.textContent = "⚠ BOSS INCOMING ⚠";
+    levelMsg.textContent = "BOSS INCOMING!";
+    levelMsg.setAttribute("opacity", "1");
+    levelMsg.setAttribute("fill", "#e94560");
+    levelMsgTimer = 2500;
+    return;
+  }
+
+  // Continuous enemy spawning (capped at 15 on screen)
+  if (!bossTriggered && enemies.length < 15) {
+    enemySpawnTimer += dt;
+    const interval = Math.max(500, lvl.spawnInterval - score * 0.3);
+    if (enemySpawnTimer >= interval) {
+      enemySpawnTimer = 0;
+      spawnEnemy(lvl.enemyId, lvl.enemyHp, lvl.enemySpeed + Math.random() * 0.4);
+    }
+  }
+
+  // HUD progress toward boss
+  const pct = Math.min(100, Math.floor(score / getBossThreshold() * 100));
+  hudWave.textContent = `BOSS AT ${getBossThreshold()}pts (${pct}%)`;
+}
+
+// ─── LEVEL MANAGEMENT ───────────────────────────────────────
+function startLevel(lvlIndex) {
+  currentLevel = lvlIndex;
+  bossActive = false;
+  bossDefeated = false;
+  bossTriggered = false;
+  bossSpawnCountdown = -1;
+  enemySpawnTimer = 0;
+  boss = null;
+
+  clearEntities();
+
+  const lvl = LEVEL_DATA[currentLevel];
+  drawBgGrid(lvl.bgColor);
+  hudLevel.textContent = `LEVEL ${currentLevel + 1}: ${lvl.name}`;
+
+  createPlayer();
+  rebuildOrbitals();
+  updateWeaponHud();
+
+  levelMsg.textContent = lvl.msg;
+  levelMsg.setAttribute("opacity", "1");
+  levelMsg.setAttribute("fill", "#fff");
+  levelMsgTimer = 3000;
+}
+
+function nextLevel() {
+  if (currentLevel >= LEVEL_DATA.length - 1) {
+    victory();
+    return;
+  }
+  startLevel(currentLevel + 1);
+}
+
+function clearEntities() {
+  while (entityLayer.firstChild) entityLayer.removeChild(entityLayer.firstChild);
+  while (particleLayer.firstChild) particleLayer.removeChild(particleLayer.firstChild);
+  enemies = [];
+  projectiles = [];
+  items = [];
+  weaponPickups = [];
+  playerBullets = [];
+  orbitals = [];
+  particles = [];
+  player = null;
+  boss = null;
+}
+
+// ─── GAME STATES ────────────────────────────────────────────
+function startGame() {
+  score = 0;
+  speedBonus = 0;
+  drillBonus = 0;
+  playerWeapons = {};
+  weaponSpawnTimer = 0;
+  state = "playing";
+  menuScreen.classList.add("hidden");
+  goScreen.classList.add("hidden");
+  vicScreen.classList.add("hidden");
+  updateWeaponHud();
+  startLevel(0);
+}
+
+function gameOver() {
+  state = "gameover";
+  saveHi();
+  document.getElementById("go-score").textContent = "SCORE: " + score;
+  document.getElementById("go-hi").textContent = "HIGH SCORE: " + hiScore;
+  goScreen.classList.remove("hidden");
+}
+
+function retryLevel() {
+  state = "playing";
+  goScreen.classList.add("hidden");
+  score = currentLevel * BOSS_SCORE_INTERVAL;
+  startLevel(currentLevel);
+}
+
+function victory() {
+  state = "victory";
+  saveHi();
+  document.getElementById("vic-score").textContent = "FINAL SCORE: " + score;
+  document.getElementById("vic-hi").textContent = "HIGH SCORE: " + hiScore;
+  vicScreen.classList.remove("hidden");
+}
+
+function showMenu() {
+  state = "menu";
+  clearEntities();
+  drawBgGrid("#0f0f23");
+  document.getElementById("menu-hi").textContent = "HIGH SCORE: " + hiScore;
+  menuScreen.classList.remove("hidden");
+  goScreen.classList.add("hidden");
+  vicScreen.classList.add("hidden");
+}
+
+// ─── UPDATE HUD ─────────────────────────────────────────────
+function updateHud() {
+  hudScore.textContent = "SCORE: " + score;
+  hudHi.textContent = "HI: " + hiScore;
+}
+
+// ─── LEVEL MESSAGE ──────────────────────────────────────────
+function updateLevelMsg(dt) {
+  if (levelMsgTimer > 0) {
+    levelMsgTimer -= dt;
+    if (levelMsgTimer <= 800) {
+      levelMsg.setAttribute("opacity", Math.max(0, levelMsgTimer / 800));
+    }
+    if (levelMsgTimer <= 0) {
+      levelMsg.setAttribute("opacity", "0");
+    }
+  }
+}
+
+// ─── MAIN LOOP ──────────────────────────────────────────────
+function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+
+  if (!lastTime) lastTime = timestamp;
+  let dt = timestamp - lastTime;
+  lastTime = timestamp;
+  if (dt > 50) dt = 50; // cap delta
+
+  if (state !== "playing") return;
+
+  const now = performance.now();
+
+  updatePlayer(dt, now);
+  updateEnemies(dt, now);
+  updateBoss(dt, now);
+  updateProjectiles(dt, now);
+  updateItems(dt, now);
+  updateWeaponPickups(dt);
+  updateWeapons(dt, now);
+  updateParticles(dt);
+  updateSpawning(dt);
+  updateLevelMsg(dt);
+  updateHud();
+
+  // Spawn certificates
+  certTimer += dt;
+  if (certTimer >= CERT_SPAWN_INTERVAL && items.length < 5) {
+    certTimer = 0;
+    spawnCert();
+  }
+
+  // Spawn weapon pickups
+  weaponSpawnTimer += dt;
+  if (weaponSpawnTimer >= WEAPON_SPAWN_INTERVAL && weaponPickups.length < 2) {
+    weaponSpawnTimer = 0;
+    spawnWeaponPickup();
+  }
+}
+
+// ─── INIT ───────────────────────────────────────────────────
+btnStart.addEventListener("click", startGame);
+btnRetry.addEventListener("click", retryLevel);
+btnMenu.addEventListener("click", showMenu);
+btnVicMenu.addEventListener("click", showMenu);
+
+document.getElementById("menu-hi").textContent = "HIGH SCORE: " + hiScore;
+drawBgGrid("#0f0f23");
+
+// Start the loop
+requestAnimationFrame(gameLoop);
+
+})();
+</script>
+</body>
+</html>
